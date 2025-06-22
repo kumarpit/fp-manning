@@ -197,6 +197,44 @@
                (delay (Sempty))
                stream)))
 
+(define stream-append :
+  (All (A) (-> (Stream A) A (Stream A)))
+  (λ (stream elem)
+    (foldright (λ ([a : A] [b : (Promise (Stream A))]) : (Stream A)
+                 (Scons (delay a) b))
+               (delay (Scons (delay elem) (delay (Sempty))))
+               stream)))
+
+(check-equal? (stream->list
+               (stream-append (list->stream (list 1 2 3 4)) 5))
+              (list 1 2 3 4 5))
+
+(define stream-concat :
+  (All (A) (-> (Stream A) (Stream A) (Stream A)))
+  (λ (stream1 stream2)
+    (foldright (λ ([a : A] [b : (Promise (Stream A))]) : (Stream A)
+                 (Scons (delay a) b))
+               (delay stream2)
+               stream1)))
+
+(check-equal? (stream->list
+               (stream-concat (list->stream (list 1 2 3 4))
+                              (list->stream (list 5 6 7 8))))
+              (list 1 2 3 4 5 6 7 8))
+
+(define stream-flatmap :
+  (All (A) (-> (Stream A) (-> A (Stream A)) (Stream A)))
+  (λ (stream f)
+    (foldright (λ ([a : A] [b : (Promise (Stream A))]) : (Stream A)
+                 (stream-concat (f a) (force b)))
+               (delay (Sempty))
+               stream)))
+
+(check-equal? (stream->list
+               (stream-flatmap (list->stream (list 1 2 3))
+                              (λ (x) (list->stream (list x x x)))))
+              (list 1 1 1 2 2 2 3 3 3))
+                              
 ;; Example demonstrating the "incremental" nature of stream operations
 (stream->list (stream-filter
                (stream-map (list->stream (list 1 2 3 4 5 6))
@@ -217,3 +255,17 @@
   (λ ([x : Integer]) : Integer
     (begin (println "mapping") (add1 x)))
   (list 1 2 3 4 5 6)))
+
+;; Since intermediate streams are not instantiated, we can use combinators
+;; (which intuitively operate on the entire list) to perform short-circuiting
+;; behaviours such as finding the first element in a stream that matches a
+;; given predicate -- this can now be implemented using `stream-filter`
+
+(define stream-find :
+  (All (A) (-> (Stream A) (-> A Boolean) (Option A)))
+  (λ (stream pred)
+    (headoption (stream-filter stream pred)))) ;; even though we are filtering
+                                               ;; we only ever compute until the
+                                               ;; first element is found
+
+;; [5.4] Infinite Streams and Corecursion
