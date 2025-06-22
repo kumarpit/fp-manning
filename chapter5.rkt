@@ -232,7 +232,7 @@
 
 (check-equal? (stream->list
                (stream-flatmap (list->stream (list 1 2 3))
-                              (λ (x) (list->stream (list x x x)))))
+                               (λ (x) (list->stream (list x x x)))))
               (list 1 1 1 2 2 2 3 3 3))
                               
 ;; Example demonstrating the "incremental" nature of stream operations
@@ -265,7 +265,69 @@
   (All (A) (-> (Stream A) (-> A Boolean) (Option A)))
   (λ (stream pred)
     (headoption (stream-filter stream pred)))) ;; even though we are filtering
-                                               ;; we only ever compute until the
-                                               ;; first element is found
+;; we only ever compute until the
+;; first element is found
 
 ;; [5.4] Infinite Streams and Corecursion
+
+;; Because streams enable incremental computation, we can operate on infinite
+;; lists without blowing the stack
+
+(define ones : (Stream Integer) (Scons (delay 1) (delay ones)))
+
+;; 5 ones for you
+(check-equal? (stream->list (take-n ones 5)) (list 1 1 1 1 1))
+
+;; Ex 5.8 Generalize ones
+(define constant : (All (A) (-> A (Stream A)))
+  (λ (x) (Scons (delay x) (delay (constant x)))))
+
+(check-equal? (stream->list (take-n (constant 'a) 5))
+              (list 'a 'a 'a 'a 'a))
+
+
+;; Ex 5.9 Write a function that generates an infinite stream of integers
+;; starting from n
+(define stream-from : (-> Integer (Stream Integer))
+  (λ (n) (Scons (delay n) (delay (stream-from (add1 n))))))
+
+(check-equal? (stream->list (take-n (stream-from 3) 3))
+              (list 3 4 5))
+
+;; Ex 5.10 Write the function fibs that generates the infinite stream of
+;; fibonacci numbers
+(define fibs : (-> (Stream Integer))
+  (letrec ([fibs-helper : (-> Integer Integer (Stream Integer))
+                     (λ (current next)
+                       (Scons (delay current)
+                              (delay
+                                (fibs-helper next
+                                             (+ current next)))))])
+    (λ () (fibs-helper 0 1))))
+
+(check-equal? (stream->list (take-n (fibs) 8)) (list 0 1 1 2 3 5 8 13))
+
+;; Ex 5.11 Write a more general stream-building function called unfold. It
+;; takes an initial state, and a function for producing both the next state,
+;; and the next value in the generate stream.
+
+(define unfold :
+  (All (A B) (-> B (-> B (Option (Pair A B))) (Stream A)))
+  (λ (initial-state f)
+    (match (f initial-state)
+      [(None) (Sempty)]
+      [(Some (cons value next-state)) (Scons (delay value)
+                                        (delay (unfold next-state f)))])))
+
+;; The `Option` return type from the `f` function is used to indicate when the
+;; stream should be terminated. The `unfold` function is an example of what's
+;; sometimes called a "corecursive" function. A recursive function usually
+;; consumes data (eg. list iteration), but a corecursive function produces data.
+;; Corecursive functions need not terminate as long as they remain productive --
+;; which just means we can compute more of the result in a finite amount of time
+;; In this case, the unfold function remains productive as long as f terminates
+;; Corecursion is sometimes called "guarded recursion" and productivity is
+;; sometimes called "cotermination".
+
+;; Ex 5.12 Implement fibs, constant, and ones in terms of unfold
+;; * the unfold based versions do not preserve sharing
