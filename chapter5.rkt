@@ -3,10 +3,19 @@
 (require/typed
  rackunit
  [check-equal? (-> Any Any Void)])
+(require/typed
+ rackunit
+ [check-exn (-> (-> Any Boolean) (-> Any) Void)])
 
 (define-type (Option A) (U (Some A) (None A)))
 (struct (A) None ())
 (struct (A) Some ([value : A]))
+
+(: option-get (All (A) (-> (Option A) A)))
+(define (option-get opt)
+  (match opt
+    [(None) (error "Cannot get on an None option")]
+    [(Some v) v]))
 
 ;; Strictness and Laziness
 
@@ -54,7 +63,7 @@
 ;; Homogenous streams
 (define-type (Stream A) (U (Sempty A) (Scons A)))
 (struct (A) Sempty ())
-(struct (A) Scons ([head : (Promise A)] [tail : (Stream A)]))
+(struct (A) Scons ([head : (Promise A)] [tail : (Promise (Stream A))]))
 
 (: Stream? (-> Any Boolean))
 (define (Stream? v) (or (Sempty? v) (Scons? v)))
@@ -68,7 +77,7 @@
 (: list->stream (All (A) (-> (Listof A) (Stream A))))
 (define (list->stream lst)
   (cond [(empty? lst) (Sempty)]
-        [else (Scons (delay (first lst)) (list->stream (rest lst)))]))
+        [else (Scons (delay (first lst)) (delay (list->stream (rest lst))))]))
 
 
 ;; Ex 5.1 Write a function to convert a stream to a list
@@ -76,11 +85,13 @@
 (define (stream->list stream)
   (match stream
     [(Sempty) '()]
-    [(Scons hd tl) (cons (force hd) (stream->list tl))]))
+    [(Scons hd tl) (cons (force hd) (stream->list (force tl)))]))
   
 (check-equal? (Stream? (list->stream (list 1 2 3 4))) #t)
 (check-equal? (list?
-               (stream->list (Scons (delay 1) (Scons (delay 2) (Sempty))))) #t)
+               (stream->list (Scons (delay 1)
+                                    (delay (Scons (delay 2)
+                                                  (delay (Sempty))))))) #t)
 
 ;; Ex 5.2 Implement take-n and drop-n for Stream
 (: take-n (All (A) (-> (Stream A) Integer (Stream A))))
@@ -88,13 +99,14 @@
   (cond [(<= n 0) (Sempty)]
         [else (match stream
                 [(Sempty) (Sempty)]
-                [(Scons hd tl) (Scons hd (take-n tl (sub1 n)))])]))
+                [(Scons hd tl) (Scons hd (delay (take-n (force tl)
+                                                        (sub1 n))))])]))
 
 (: drop-n (All (A) (-> (Stream A) Integer (Stream A))))
 (define (drop-n stream n)
   (match stream
     [(Sempty) (Sempty)]
-    [(Scons hd tl) (if (<= n 0) stream (drop-n tl (sub1 n)))]))
+    [(Scons hd tl) (if (<= n 0) stream (drop-n (force tl) (sub1 n)))]))
 
 
 ;; Ex 5.3 Implement takeWhile for returning all starting elements in a stream
@@ -104,7 +116,7 @@
   (match stream
     [(Sempty) (Sempty)]
     [(Scons hd tl) (if (pred hd)
-                       (Scons hd (take-while tl pred))
+                       (Scons hd (delay (take-while (force tl) pred)))
                        (Sempty))]))
 
 
@@ -114,7 +126,7 @@
 (define (exists1 stream pred)
   (match stream
     [(Sempty) #f]
-    [(Scons hd tl) (if (pred (force hd)) #t (exists1 tl pred))]))
+    [(Scons hd tl) (if (pred (force hd)) #t (exists1 (force tl) pred))]))
 
 (: foldright (All (A B) (-> (-> A (Promise B) B) (Promise B) (Stream A) B)))
 (define (foldright f z stream)
@@ -122,7 +134,7 @@
     [(Sempty) (force z)]
     ;; If f never evaluates its second argument, recursion never occurs -- this
     ;; way, we can achieve early termination!
-    [(Scons hd tl) (f (force hd) (delay (foldright f z tl)))]))
+    [(Scons hd tl) (f (force hd) (delay (foldright f z (force tl))))]))
 
 ;; Since foldright can now support early termination, we can use it to implement
 ;; exists1. This isn't possible with the original (eager) foldright. So
@@ -131,8 +143,77 @@
 (define exists2 :
   (All (A) (-> (Stream A) (-> A Boolean) Boolean))
   (λ (stream pred)
-    (foldright (λ: ([a : A] [b : (Promise Boolean)]) : Boolean
-                   (if (pred a) #t (force b)))
-                 (delay #f)
-                 stream)))
+    (foldright (λ ([a : A] [b : (Promise Boolean)]) : Boolean
+                 (if (pred a) #t (force b)))
+               (delay #f)
+               stream)))
 
+;; Ex 5.4 Implement forAll with early termination
+(define forall :
+  (All (A) (-> (Stream A) (-> A Boolean) Boolean))
+  (λ (stream pred)
+    (foldright (λ ([a : A] [b : (Promise Boolean)]) : Boolean
+                 (and (pred a) (force b))) ;; and is lazy in 2nd arg
+               (delay #t)
+               stream)))
+
+;; Ex 5.5 Use foldright to implement takewhile
+(define takewhile2 :
+  (All (A) (-> (Stream A) (-> A Boolean) (Stream A)))
+  (λ (stream pred)
+    (foldright (λ ([a : A] [b : (Promise (Stream A))]) : (Stream A)
+                 (if (pred a) (Scons (delay a) b) (Sempty)))
+               (delay (Sempty))
+               stream)))
+
+;; Ex 5.6 Implement headoption using foldright
+(define headoption :
+  (All (A) (-> (Stream A) (Option A)))
+  (λ (stream)
+    ;; never recurses
+    (foldright (λ ([a : A] [_ : (Promise (Option A))]) : (Option A)
+                 (Some a)) (delay (None)) stream)))
+
+(check-equal? (option-get (headoption (list->stream (list 1 2 3)))) 1)
+(check-exn exn:fail? (λ () (option-get (headoption (Sempty)))))
+
+;; Ex 5.7 Implement map, filter, append, and flatmap using foldright
+(define stream-map :
+  (All (A B) (-> (Stream A) (-> A B) (Stream B)))
+  (λ (stream f)
+    (foldright (λ ([a : A] [b : (Promise (Stream B))]) : (Stream B)
+                 (Scons (delay (f a)) b)) ;; The key point to notice
+               ;; here is the (delay (f a))
+               (delay (Sempty))
+               stream)))
+
+(define stream-filter :
+  (All (A) (-> (Stream A) (-> A Boolean) (Stream A)))
+  (λ (stream pred)
+    (foldright (λ ([a : A] [b : (Promise (Stream A))]) : (Stream A)
+                 (if (pred a)
+                     (Scons (delay a) b)
+                     (force b)))
+               (delay (Sempty))
+               stream)))
+
+;; Example demonstrating the "incremental" nature of stream operations
+(stream->list (stream-filter
+               (stream-map (list->stream (list 1 2 3 4 5 6))
+                           (λ ([x : Integer]) : Integer
+                             (begin
+                               (println "mapping")
+                               (add1 x))))
+               (λ ([x : Integer]) : Boolean
+                 (begin
+                   (println "filtering")
+                   (even? x)))))
+
+;; Compare this to the same operations on a regular list
+(filter
+ (λ ([x : Integer]) : Boolean
+   (begin (println "filtering") (even? x)))
+ (map
+  (λ ([x : Integer]) : Integer
+    (begin (println "mapping") (add1 x)))
+  (list 1 2 3 4 5 6)))
