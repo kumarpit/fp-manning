@@ -187,6 +187,10 @@
                (delay (Sempty))
                stream)))
 
+(check-equal? (stream->list (stream-map (list->stream (list 1 2 3))
+                                        add1))
+              (list 2 3 4))
+
 (define stream-filter :
   (All (A) (-> (Stream A) (-> A Boolean) (Stream A)))
   (λ (stream pred)
@@ -196,6 +200,10 @@
                      (force b)))
                (delay (Sempty))
                stream)))
+
+(check-equal? (stream->list (stream-filter (list->stream (list 1 2 3))
+                                           even?))
+              (list 2))
 
 (define stream-append :
   (All (A) (-> (Stream A) A (Stream A)))
@@ -273,7 +281,7 @@
 ;; Because streams enable incremental computation, we can operate on infinite
 ;; lists without blowing the stack
 
-(define ones : (Stream Integer) (Scons (delay 1) (delay ones)))
+(define ones : (Stream 1) (Scons (delay 1) (delay ones)))
 
 ;; 5 ones for you
 (check-equal? (stream->list (take-n ones 5)) (list 1 1 1 1 1))
@@ -298,11 +306,11 @@
 ;; fibonacci numbers
 (define fibs : (-> (Stream Integer))
   (letrec ([fibs-helper : (-> Integer Integer (Stream Integer))
-                     (λ (current next)
-                       (Scons (delay current)
-                              (delay
-                                (fibs-helper next
-                                             (+ current next)))))])
+                        (λ (current next)
+                          (Scons (delay current)
+                                 (delay
+                                   (fibs-helper next
+                                                (+ current next)))))])
     (λ () (fibs-helper 0 1))))
 
 (check-equal? (stream->list (take-n (fibs) 8)) (list 0 1 1 2 3 5 8 13))
@@ -317,7 +325,7 @@
     (match (f initial-state)
       [(None) (Sempty)]
       [(Some (cons value next-state)) (Scons (delay value)
-                                        (delay (unfold next-state f)))])))
+                                             (delay (unfold next-state f)))])))
 
 ;; The `Option` return type from the `f` function is used to indicate when the
 ;; stream should be terminated. The `unfold` function is an example of what's
@@ -330,4 +338,46 @@
 ;; sometimes called "cotermination".
 
 ;; Ex 5.12 Implement fibs, constant, and ones in terms of unfold
-;; * the unfold based versions do not preserve sharing
+;; *the unfold based versions do not preserve sharing
+(define (unfold-fibs) (unfold (cons 0 1)
+                              (λ ([state : (Pair Integer Integer)])
+                                (let* ([current (car state)]
+                                       [next (cdr state)])
+                                  (Some (cons current
+                                              (cons next
+                                                    (+ current next))))))))
+
+(check-equal? (stream->list (take-n (unfold-fibs) 8)) (list 0 1 1 2 3 5 8 13))
+
+(define unfold-constant :
+  (All (A) (-> A (Stream A)))
+  (λ (x)
+    (unfold x (λ ([v : A]) : (Option (Pair A A))
+                (Some (cons v v))))))
+
+(check-equal? (stream->list (take-n (unfold-constant 'a) 5))
+              (list 'a 'a 'a 'a 'a))
+
+(define unfold-ones :
+  (-> (Stream 1))
+  (λ () (unfold 1 (λ (_) (Some (cons 1 1))))))
+
+(check-equal? (stream->list (take-n (unfold-ones) 5)) (list 1 1 1 1 1))
+
+;; Ex 5.13 Use unfold to implement map, takeWhile, take, zipWith, and zipAll
+
+(define unfold-stream-map :
+  (All (A B) (-> (Stream A) (-> A B) (Stream B)))
+  (λ (stream f) (unfold stream
+                        (λ ([state : (Stream A)]) : (Option (Pair B (Stream A)))
+                          (match state
+                            [(Sempty) (None)]
+                            [(Scons hd tl) (Some
+                                            (cons (f (force hd))
+                                                  (force tl)))])))))
+
+(check-equal? (stream->list (unfold-stream-map (list->stream (list 1 2 3))
+                                        add1))
+              (list 2 3 4))
+
+
