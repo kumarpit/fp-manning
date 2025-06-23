@@ -17,6 +17,12 @@
     [(None) (error "Cannot get on an None option")]
     [(Some v) v]))
 
+(: option-get-or-else (All (A) (-> (Option A) A A)))
+(define (option-get-or-else opt default)
+  (match opt
+    [(None) default]
+    [(Some v) v]))
+
 ;; Strictness and Laziness
 
 ;; Infinite computation, useful for testing
@@ -102,6 +108,10 @@
                 [(Scons hd tl) (Scons hd (delay (take-n (force tl)
                                                         (sub1 n))))])]))
 
+(check-equal? (stream->list (take-n
+                             (list->stream (list 1 2 3 4 5)) 2))
+              (list 1 2))
+
 (: drop-n (All (A) (-> (Stream A) Integer (Stream A))))
 (define (drop-n stream n)
   (match stream
@@ -119,6 +129,10 @@
                        (Scons hd (delay (take-while (force tl) pred)))
                        (Sempty))]))
 
+(check-equal? (stream->list (take-while
+                             (list->stream (list 2 4 6 7 8 9))
+                             (λ ([x : (Promise Integer)]) (even? (force x)))))
+              (list 2 4 6))
 
 ;; [5.3] Separating program description from evaluation
 
@@ -165,6 +179,11 @@
                  (if (pred a) (Scons (delay a) b) (Sempty)))
                (delay (Sempty))
                stream)))
+
+(check-equal? (stream->list (takewhile2
+                             (list->stream (list 2 4 6 7 8 9))
+                             even?))
+              (list 2 4 6))
 
 ;; Ex 5.6 Implement headoption using foldright
 (define headoption :
@@ -368,16 +387,132 @@
 
 (define unfold-stream-map :
   (All (A B) (-> (Stream A) (-> A B) (Stream B)))
-  (λ (stream f) (unfold stream
-                        (λ ([state : (Stream A)]) : (Option (Pair B (Stream A)))
-                          (match state
-                            [(Sempty) (None)]
-                            [(Scons hd tl) (Some
-                                            (cons (f (force hd))
-                                                  (force tl)))])))))
+  (λ (stream f)
+    (unfold stream
+            (λ ([state : (Stream A)]) : (Option (Pair B (Stream A)))
+              (match state
+                [(Sempty) (None)]
+                [(Scons hd tl) (Some
+                                (cons (f (force hd))
+                                      (force tl)))])))))
 
 (check-equal? (stream->list (unfold-stream-map (list->stream (list 1 2 3))
-                                        add1))
+                                               add1))
               (list 2 3 4))
 
 
+(define unfold-stream-takewhile :
+  (All (A) (-> (Stream A) (-> A Boolean) (Stream A)))
+  (λ (stream pred)
+    (unfold stream
+            (λ ([state : (Stream A)]) : (Option (Pair A (Stream A)))
+              (match state
+                [(Sempty) (None)]
+                [(Scons hd tl)
+                 (if (pred (force hd))
+                     (Some (cons (force hd) (force tl)))
+                     (None))])))))
+
+(check-equal? (stream->list (unfold-stream-takewhile
+                             (list->stream (list 2 4 6 7 8 9))
+                             even?))
+              (list 2 4 6))
+
+
+(define unfold-stream-take-n :
+  (All (A) (-> (Stream A) Integer (Stream A)))
+  (λ (stream n)
+    (unfold (cons stream n)
+            (λ ([state : (Pair (Stream A) Integer)])
+              (match state
+                [(cons (Sempty) _) (None)]
+                [(cons (Scons hd tl) n)
+                 (if (= n 0)
+                     (None)
+                     (Some (cons (force hd) (cons (force tl) (sub1 n)))))])))))
+
+(check-equal? (stream->list (unfold-stream-take-n
+                             (list->stream (list 1 2 3 4 5)) 2))
+              (list 1 2))
+
+(define unfold-stream-zipwith :
+  (All (A B C) (-> (Stream A) (Stream B) (-> A B C) (Stream C)))
+  (λ (stream1 stream2 f)
+    (unfold (cons stream1 (cons stream2 f))
+            (λ ([state : (List* (Stream A) (Stream B) (-> A B C))]) :
+              (Option (Pair C (List* (Stream A) (Stream B) (-> A B C))))
+              (match state
+                [(cons (Sempty) (cons _ _)) (None)]
+                [(cons _ (cons (Sempty) _)) (None)]
+                [(cons (Scons hd1 tl1) (cons (Scons hd2 tl2) f))
+                 (Some (cons (f (force hd1) (force hd2))
+                             (cons (force tl1) (cons (force tl2) f))))])))))
+
+(check-equal? (stream->list (unfold-stream-zipwith
+                             (list->stream (list 1 2 3))
+                             (list->stream (list 4 5 6)) +))
+              (list 5 7 9))
+
+(check-equal? (stream->list (unfold-stream-zipwith
+                             (list->stream '())
+                             (list->stream (list 4 5 6)) +))
+              '())
+                                     
+(check-equal? (stream->list (unfold-stream-zipwith
+                             (list->stream (list 1 2 3))
+                             (list->stream '()) +))
+              '())
+
+(check-equal? (stream->list (unfold-stream-zipwith
+                             (list->stream (list 1 2))
+                             (list->stream (list 4 5 6)) +))
+              (list 5 7))
+
+
+(define unfold-stream-zip :
+  (All (A B) (-> (Stream A) (Stream B) (Stream (Pair A B))))
+  (λ (stream1 stream2)
+    (unfold (cons stream1 stream2)
+            (λ ([state : (Pair (Stream A) (Stream B))]) :
+              (Option (Pair (Pair A B) (Pair (Stream A) (Stream B))))
+              (match state
+                [(cons (Sempty) _) (None)]
+                [(cons _ (Sempty)) (None)]
+                [(cons (Scons hd1 tl1) (Scons hd2 tl2))
+                 (Some (cons (cons (force hd1) (force hd2))
+                             (cons (force tl1) (force tl2))))])))))
+
+(check-equal? (stream->list (unfold-stream-zip (list->stream (list 1 2 3))
+                                               (list->stream (list 4 5))))
+              (list (cons 1 4)
+                    (cons 2 5)))
+
+(define unfold-stream-zipall :
+  (All (A B) (-> (Stream A) (Stream B) (Stream (Pair (Option A) (Option B)))))
+  (λ (stream1 stream2)
+    (unfold (cons stream1 stream2)
+            (λ ([state : (Pair (Stream A) (Stream B))]) :
+              (Option (Pair (Pair (Option A) (Option B))
+                            (Pair (Stream A) (Stream B))))
+              (match state
+                [(cons (Sempty) (Scons hd tl))
+                 (Some (cons (cons (None) (Some (force hd)))
+                             (cons (Sempty) (force tl))))]
+                [(cons (Scons hd tl) (Sempty))
+                 (Some (cons (cons (Some (force hd)) (None))
+                             (cons (force tl) (Sempty))))]
+                [(cons (Scons hd1 tl1) (Scons hd2 tl2))
+                 (Some (cons (cons (Some (force hd1))
+                                   (Some (force hd2)))
+                             (cons (force tl1) (force tl2))))]
+                [else (None)])))))
+
+(check-equal? (stream->list (stream-map
+                             (unfold-stream-zipall (list->stream (list 1 2 3))
+                                                   (list->stream (list 4)))
+                             (λ ([p : (Pair (Option Integer)
+                                            (Option Integer))]) : Integer
+                               (let* ([a (option-get-or-else (car p) 0)]
+                                      [b (option-get-or-else (cdr p) 0)])
+                                 (+ a b)))))
+              (list 5 2 3))
