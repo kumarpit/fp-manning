@@ -516,3 +516,64 @@
                                       [b (option-get-or-else (cdr p) 0)])
                                  (+ a b)))))
               (list 5 2 3))
+
+;; Ex 5.14 Implement startsWith using functions you've written
+(define starts-with? :
+  (All (A B) (-> (Stream A) (Stream B) Boolean))
+  (λ (stream1 stream2)
+    (forall (unfold-stream-zipall stream1 stream2)
+            (λ ([p : (Pair (Option A) (Option B))])
+              (match p
+                [(cons (None) (Some _)) #f]
+                [(cons (Some _) (None)) #t]
+                [(cons (Some v1) (Some v2)) (equal? v1 v2)]
+                [else #t])))))
+
+(check-equal? (starts-with? (list->stream (list 1 2 3))
+                            (list->stream (list 1 2)))
+              #t)
+(check-equal? (starts-with? (list->stream (list 1 2))
+                            (list->stream (list 1 2 3)))
+              #f)
+(check-equal? (starts-with? (list->stream (list 1 2 3))
+                            (list->stream (list 1 2 3)))
+              #t)
+(check-equal? (starts-with? (list->stream (list 1 2))
+                            (list->stream '()))
+              #t)
+(check-equal? (starts-with? (list->stream '())
+                            (list->stream (list 1 2)))
+              #f)
+
+;; Ex 5.15 Implement tails using unfold. tails returns the stream of all
+;; suffixes of a stream
+(define tails :
+  (All (A) (-> (Stream A) (Stream (Stream A))))
+  (λ (stream)
+    (unfold stream
+            (λ ([state : (Stream A)])
+              (match state
+                [(Sempty) (None)]
+                [(Scons _ tl) (Some (cons state (force tl)))])))))
+
+;; We can now implement the hasSubsequence method from exercise 3.24 in an
+;; optimal way without needing to explicitly manage a monolithic loop
+(define has-subsequence? :
+  (All (A) (-> (Stream A) (Stream A) Boolean))
+  (λ (stream1 stream2)
+    (exists2 (tails stream1)
+             (λ ([s : (Stream A)])
+               (starts-with? s stream2)))))
+
+(check-equal? (has-subsequence? (list->stream (list 1 2 3 4))
+                                (list->stream (list 1 2)))
+              #t)
+(check-equal? (has-subsequence? (list->stream (list 1 2 3 4))
+                                (list->stream (list 2 3)))
+              #t)
+(check-equal? (has-subsequence? (list->stream (list 1 2 3 4))
+                                (list->stream (list 4)))
+              #t)
+(check-equal? (has-subsequence? (list->stream (list 1 2 3 4))
+                                (list->stream (list 4 5)))
+              #f)
