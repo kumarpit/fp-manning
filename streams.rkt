@@ -23,7 +23,7 @@
     [(None) default]
     [(Some v) v]))
 
-;; Strictness and Laziness
+;; Chapter 5: Strictness and Laziness
 
 ;; Infinite computation, useful for testing
 (: DIVERGE (-> Nothing))
@@ -577,3 +577,50 @@
 (check-equal? (has-subsequence? (list->stream (list 1 2 3 4))
                                 (list->stream (list 4 5)))
               #f)
+
+;; Ex 5.16 Generalize tails to the function scanRight, which is like a foldRight
+;; that returns a stream of the intermediate results
+
+;; NOTE: You cannot implement this using unfold (in linear time) since unfold
+;; generates elements from left to right
+
+(struct (A) ScanResult ([acc : A] [intermediate : (Listof A)]))
+
+#;
+;; Type checker doesn't infer B == (ScanResult B)...
+(define scanright :
+  (All (A B) (-> (-> A (Promise B) B)
+                 (Promise (ScanResult B))
+                 (Stream A)
+                 (ScanResult B)))
+  (λ (f z stream)
+    (foldright (λ ([a : A] [b : (Promise (ScanResult B))]) :
+                 (ScanResult B)
+                 (let ([result (f a (delay (ScanResult-acc (force b))))])
+                   (ScanResult result
+                               (cons result
+                                     (ScanResult-intermediate (force b))))))
+               (delay (ScanResult (force z) empty))
+               stream)))
+
+;; The fix is to use `inst` to explicity instruct the type checker about which
+;; types to use for the type parameters...why can't it infer it?
+(define scanright :
+  (All (A B) (-> (-> A (Promise B) B) (Promise B) (Stream A) (Listof B)))
+  (λ (f z stream)
+    (ScanResult-intermediate ((inst foldright A (ScanResult B))
+                              (λ (a b)
+                                (let ([result (f a (delay (ScanResult-acc
+                                                           (force b))))])
+                                  (ScanResult result
+                                              (cons result
+                                                    (ScanResult-intermediate
+                                                     (force b))))))
+                              (delay (ScanResult (force z) (list (force z))))
+                              stream))))
+
+(check-equal? (scanright (λ ([a : Integer] [b : (Promise Integer)])
+                           (+ a (force b)))
+                         (delay 0)
+                         (list->stream (list 1 2 3)))
+              (list 6 5 3 0))

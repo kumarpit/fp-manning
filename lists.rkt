@@ -1,7 +1,7 @@
 #lang racket
 (require rackunit)
 
-;; Functional Data Structures
+;; Chapter 3: Functional Data Structures
 
 ;; Implementations for foldleft and foldright
 (define (foldleft f acc lst)
