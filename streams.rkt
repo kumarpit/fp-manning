@@ -1,11 +1,9 @@
 #lang typed/racket
 (require rackunit)
-(require/typed
- rackunit
- [check-equal? (-> Any Any Void)])
-(require/typed
- rackunit
+(require/typed rackunit
+ [check-equal? (-> Any Any Void)]
  [check-exn (-> (-> Any Boolean) (-> Any) Void)])
+
 
 (define-type (Option A) (U (Some A) (None A)))
 (struct (A) None ())
