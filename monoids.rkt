@@ -19,6 +19,10 @@
 
 (struct (A) Monoid ([zero : A] [combine : (-> A A A)]))
 
+;; Example of a monoid for A = String
+(define monoid/string : (Monoid String)
+  (Monoid "" (λ ([a : String] [b : String]) (string-append a b))))
+
 ;; Ex 10.1 Give monoid instances for integer addition, multiplication, as well
 ;; as the Boolean operators
 
@@ -64,3 +68,24 @@
          identity
          (λ ([a : (Endofun A)] [b : (Endofun A)]) : (Endofun A)
            (λ (c) (b (a c))))))) ; Could also compose (a (b c))
+
+
+;; Monoids have an intimate connection with lists
+
+(define space/string " ")
+(define list/strings (list "I"
+                           space/string
+                           "am"
+                           space/string
+                           "a"
+                           space/string
+                           "list"))
+
+;; You would expect this to produce the same output as with a foldl, but that is
+;; not the case since Racket's foldl/foldr have the property that:
+;; (foldr cons null lst) = lst
+;; (foldl cons null lst) = (reverse lst)
+;; See https://stackoverflow.com/questions/8778492
+(foldr (Monoid-combine monoid/string)
+       (Monoid-zero monoid/string)
+       list/strings)
