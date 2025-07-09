@@ -94,6 +94,12 @@
 ;; arguments to the combine function. This is because the combine function need
 ;; not be commutative.
 
+(define monoid/dual : (All (A) (-> (Monoid A) (Monoid A)))
+  (λ (m)
+    (Monoid
+     (Monoid-zero m)
+     (λ ([a : A] [b : A]) ((Monoid-combine m) b a)))))
+
 ;; Ex 10.5 Implement foldMap
 
 (define list/foldmap : (All (A B) (-> (-> A B) (Monoid B) (Listof A) B))
@@ -105,12 +111,6 @@
 
 ;; Ex 10.6 The foldMap function can be implemented using foldRight or foldLeft,
 ;; but you can also implement foldLeft/foldRight using foldMap. Try it.
-
-(define monoid/dual : (All (A) (-> (Monoid A) (Monoid A)))
-  (λ (m)
-    (Monoid
-     (Monoid-zero m)
-     (λ ([a : A] [b : A]) ((Monoid-combine m) b a)))))
 
 (define foldright/foldmap : (All (A B) (-> (-> A (Endofun B)) B (Listof A) B))
   (λ (f acc lst)
