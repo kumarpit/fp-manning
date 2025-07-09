@@ -67,7 +67,7 @@
   (λ () ((inst Monoid (Endofun A))
          identity
          (λ ([a : (Endofun A)] [b : (Endofun A)]) : (Endofun A)
-           (λ (c) (b (a c))))))) ; Could also compose (a (b c))
+           (λ (v) (b (a v))))))) ; Could also compose as (a (b v))
 
 
 ;; Monoids have an intimate connection with lists
@@ -89,3 +89,42 @@
 (foldr (Monoid-combine monoid/string)
        (Monoid-zero monoid/string)
        list/strings)
+
+;; Also note that each monoid has a "dual" that can be achieved by flipping the
+;; arguments to the combine function. This is because the combine function need
+;; not be commutative.
+
+;; Ex 10.5 Implement foldMap
+
+(define list/foldmap : (All (A B) (-> (-> A B) (Monoid B) (Listof A) B))
+  (λ (f m lst)
+    (foldr (λ ([x : A] [acc : B]) ((Monoid-combine m) (f x) acc))
+           (Monoid-zero m)
+           lst)))
+
+
+;; Ex 10.6 The foldMap function can be implemented using foldRight or foldLeft,
+;; but you can also implement foldLeft/foldRight using foldMap. Try it.
+
+(define monoid/dual : (All (A) (-> (Monoid A) (Monoid A)))
+  (λ (m)
+    (Monoid
+     (Monoid-zero m)
+     (λ ([a : A] [b : A]) ((Monoid-combine m) b a)))))
+
+(define foldright/foldmap : (All (A B) (-> (-> A (Endofun B)) B (Listof A) B))
+  (λ (f acc lst)
+    (((inst list/foldmap A (Endofun B))
+      (λ ([a : A]) (f a))
+      ((inst monoid/dual (Endofun B)) (monoid/endofun))
+      lst)
+     acc)))
+
+;; Same as above, except we use the original endofun monoid rather than its dual
+(define foldleft/foldmap : (All (A B) (-> (-> A (Endofun B)) B (Listof A) B))
+  (λ (f acc lst)
+    (((inst list/foldmap A (Endofun B))
+      (λ ([a : A]) (f a))
+      (monoid/endofun) ;;
+      lst)
+     acc)))
