@@ -112,11 +112,18 @@
 ;; Ex 10.6 The foldMap function can be implemented using foldRight or foldLeft,
 ;; but you can also implement foldLeft/foldRight using foldMap. Try it.
 
+;; The idea here is to notice that the function passed to foldright contains an
+;; Endofun! (A, B) -> B == A -> B -> B
+;; So we first each element of the list to get a list of B -> B
+;; Then compose these endo-functions in the right order, depending on whether we
+;; we want left/right associativity
+
 (define foldright/foldmap : (All (A B) (-> (-> A (Endofun B)) B (Listof A) B))
   (λ (f acc lst)
     (((inst list/foldmap A (Endofun B))
       (λ ([a : A]) (f a))
-      ((inst monoid/dual (Endofun B)) (monoid/endofun))
+      ((inst monoid/dual (Endofun B)) (monoid/endofun)) ;; The default Endofun
+      ;; monoid in my implementation is left associative
       lst)
      acc)))
 
@@ -128,3 +135,31 @@
       (monoid/endofun) ;;
       lst)
      acc)))
+
+
+;; 10.6 Composing Monoids
+
+;; The Monoid abstraction in itself is not all that compelling, and with the
+;; generalized `foldmap` it's only slightly more interesting. The real power
+;; of monoids comes from the fact that they compose.
+
+;; This means that, if types A and B are monoids, then the tuple types (A, B)
+;; is also a monoid (called their product).
+
+;; Ex 10.16 Prove it
+
+;; Well, we need to show that there exists an identity element and an
+;; associative operation for the tuple (A, B).
+
+(define monoid/product : (All (A B)
+                              (-> (Monoid A) (Monoid B) (Monoid (Vector A B))))
+  (λ (ma mb)
+    ((inst Monoid (Vector A B))
+           (vector
+            (Monoid-zero ma)
+            (Monoid-zero mb))
+     (λ ([a : (Vector A B)] [b : (Vector A B)])
+       (vector
+        ((Monoid-combine ma) (vector-ref a 0) (vector-ref b 0))
+        ((Monoid-combine mb) (vector-ref a 1) (vector-ref b 1)))))))
+
