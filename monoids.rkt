@@ -5,7 +5,6 @@
                [check-exn (-> (-> Any Boolean) (-> Any) Void)])
 
 ;; Chapter 7: Monoids
-;; Related: Category Theory
 
 ;; A monoid is a "purely algebraic structure". This means that it is only
 ;; defined by its algebra, and instances of monoids may little to do with each
@@ -187,7 +186,7 @@
                           (hash-ref b curr (λ () (Monoid-zero vm)))))
               acc))
           zero
-          (append (hash-keys a) (hash-keys b))))))))
+          (remove-duplicates (append (hash-keys a) (hash-keys b)))))))))
 
 
 ;; Example - MapMerge
@@ -212,8 +211,39 @@
     monoid/int-add)))
 
 (check-equal?
-  ((Monoid-combine myhashtable/monoid) myhashtable1 myhashtable2)
-  (make-hash (list (cons 'o1
-                         (make-hash (list
-                                     (cons 'i1 1)
-                                     (cons 'i2 5)))))))
+ ((Monoid-combine myhashtable/monoid) myhashtable1 myhashtable2)
+ (make-hash (list (cons 'o1
+                        (make-hash (list
+                                    (cons 'i1 1)
+                                    (cons 'i2 5)))))))
+
+;; Ex 10.17 Write a monoid instance for functions whose results are monoids
+(define monoid/func : (All (A B) (-> (Monoid B) (Monoid (-> A B))))
+  (λ (mb)
+    ((inst Monoid (-> A B))
+     (λ ([_ : A]) (Monoid-zero mb))
+     (λ ([a : (-> A B)] [b : (-> A B)])
+       (λ ([arg : A])
+         ((Monoid-combine mb)
+          (a arg)
+          (b arg)))))))
+
+;; Ex 10.18 Implement bag* for a list
+;; *bag is a mapping from element -> count
+
+(define make-bag : (All (A) (-> (Listof A) (Mutable-HashTable A Integer)))
+  (λ (lst)
+    (let ([result-monoid ((inst hashtable/monoid/merge A Integer)
+                          monoid/int-add)])
+      (foldl
+       (Monoid-combine result-monoid)
+       (Monoid-zero result-monoid)
+       (map (λ ([elem : A]) : (Mutable-HashTable A Integer)
+              (make-hash (list (cons elem 1))))
+            lst)))))
+
+(check-equal? (make-bag (list 'a 'b 'c 'a 'a 'b))
+              (make-hash (list
+                          (cons 'a 3)
+                          (cons 'b 2)
+                          (cons 'c 1))))
