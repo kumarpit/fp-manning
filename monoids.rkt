@@ -249,13 +249,10 @@
 ;; to perform multiple calculations simulatenously when folding a datastructure
 
 ;; Example - Averaging values in a list
-(define productmonoid (monoid/product monoid/int-add monoid/int-add))
-(define list1 (list 1 2 3 4))
-
 (check-equal? (list/foldmap
                (λ ([e : Integer]) (vector 1 e))
-               productmonoid
-               list1)
+               (monoid/product monoid/int-add monoid/int-add)
+               (list 1 2 3 4))
               (vector 4 10)) ; count, sum
 
 ;; While it is tedious to assemble monoids by hand by taking their product and
