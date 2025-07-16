@@ -4,7 +4,7 @@
                [check-equal? (-> Any Any Void)]
                [check-exn (-> (-> Any Boolean) (-> Any) Void)])
 
-;; Chapter 7: Monoids
+;; Chapter 10: Monoids
 
 ;; A monoid is a "purely algebraic structure". This means that it is only
 ;; defined by its algebra, and instances of monoids may little to do with each
@@ -233,14 +233,11 @@
 
 (define make-bag : (All (A) (-> (Listof A) (Mutable-HashTable A Integer)))
   (λ (lst)
-    (let ([result-monoid ((inst hashtable/monoid/merge A Integer)
-                          monoid/int-add)])
-      (foldl
-       (Monoid-combine result-monoid)
-       (Monoid-zero result-monoid)
-       (map (λ ([elem : A]) : (Mutable-HashTable A Integer)
-              (make-hash (list (cons elem 1))))
-            lst)))))
+    (list/foldmap
+     (λ ([elem : A]) : (Mutable-HashTable A Integer)
+       (make-hash (list (cons elem 1))))
+     ((inst hashtable/monoid/merge A Integer) monoid/int-add)
+     lst)))
 
 (check-equal? (make-bag (list 'a 'b 'c 'a 'a 'b))
               (make-hash (list
