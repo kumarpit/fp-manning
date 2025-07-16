@@ -244,3 +244,21 @@
                           (cons 'a 3)
                           (cons 'b 2)
                           (cons 'c 1))))
+
+;; Using composed monoids to fuse traversals - i.e composed monoids allow us
+;; to perform multiple calculations simulatenously when folding a datastructure
+
+;; Example - Averaging values in a list
+(define productmonoid (monoid/product monoid/int-add monoid/int-add))
+(define list1 (list 1 2 3 4))
+
+(check-equal? (list/foldmap
+               (λ ([e : Integer]) (vector 1 e))
+               productmonoid
+               list1)
+              (vector 4 10)) ; count, sum
+
+;; While it is tedious to assemble monoids by hand by taking their product and
+;; foldmapping, but this one can develop a combinator library that makes this
+;; process more convenient and allows for parallelizing complex computations.
+
