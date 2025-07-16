@@ -211,5 +211,9 @@
    ((inst hashtable/monoid/merge Symbol Integer)
     monoid/int-add)))
 
-;; '#hash((o1 . #hash((i1 . 1) (i2 . 5))))
-((Monoid-combine myhashtable/monoid) myhashtable1 myhashtable2)
+(check-equal?
+  ((Monoid-combine myhashtable/monoid) myhashtable1 myhashtable2)
+  (make-hash (list (cons 'o1
+                         (make-hash (list
+                                     (cons 'i1 1)
+                                     (cons 'i2 5)))))))
