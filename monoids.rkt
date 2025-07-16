@@ -142,7 +142,7 @@
 ;; The Monoid abstraction in itself is not all that compelling, and with the
 ;; generalized `foldmap` it's only slightly more interesting. The real power
 ;; of monoids comes from the fact that they compose.
-
+;;
 ;; This means that, if types A and B are monoids, then the tuple types (A, B)
 ;; is also a monoid (called their product).
 
@@ -155,11 +155,61 @@
                               (-> (Monoid A) (Monoid B) (Monoid (Vector A B))))
   (λ (ma mb)
     ((inst Monoid (Vector A B))
-           (vector
-            (Monoid-zero ma)
-            (Monoid-zero mb))
+     (vector
+      (Monoid-zero ma)
+      (Monoid-zero mb))
      (λ ([a : (Vector A B)] [b : (Vector A B)])
        (vector
         ((Monoid-combine ma) (vector-ref a 0) (vector-ref b 0))
         ((Monoid-combine mb) (vector-ref a 1) (vector-ref b 1)))))))
 
+
+;; Containers that contain monoid types form really interesting monoids!
+;; As an example, consider this monoid for merging key-value Maps as long as the
+;; value type is a monoid.
+
+(define hashtable/monoid/merge : (All (K V)
+                                      (-> (Monoid V)
+                                          (Monoid (Mutable-HashTable K V))))
+  (λ (vm)
+    (let: [(zero : (Mutable-HashTable K V) (make-hash))]
+      ((inst Monoid (Mutable-HashTable K V))
+       zero
+       (λ ([a : (Mutable-HashTable K V)] [b : (Mutable-HashTable K V)])
+         (foldl
+          (λ ([curr : K] [acc : (Mutable-HashTable K V)])
+            : (Mutable-HashTable K V)
+            (begin
+              (hash-set! acc curr
+                         ((Monoid-combine vm)
+                          ; Atleast one value is guranteed to exist
+                          (hash-ref a curr (λ () (Monoid-zero vm)))
+                          (hash-ref b curr (λ () (Monoid-zero vm)))))
+              acc))
+          zero
+          (append (hash-keys a) (hash-keys b))))))))
+
+
+;; Example - MapMerge
+
+(define-type MyHashTable
+  (Mutable-HashTable Symbol (Mutable-HashTable Symbol Integer)))
+
+(define myhashtable1 : MyHashTable
+  (make-hash (list (cons 'o1
+                         (make-hash (list
+                                     (cons 'i1 1)
+                                     (cons 'i2 2)))))))
+
+(define myhashtable2 : MyHashTable
+  (make-hash (list (cons 'o1
+                         (make-hash (list
+                                     (cons 'i2 3)))))))
+
+(define myhashtable/monoid : (Monoid MyHashTable)
+  ((inst hashtable/monoid/merge Symbol (Mutable-HashTable Symbol Integer))
+   ((inst hashtable/monoid/merge Symbol Integer)
+    monoid/int-add)))
+
+;; '#hash((o1 . #hash((i1 . 1) (i2 . 5))))
+((Monoid-combine myhashtable/monoid) myhashtable1 myhashtable2)
