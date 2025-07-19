@@ -1,31 +1,7 @@
 #lang typed/racket
-(require rackunit)
-(require/typed rackunit
- [check-equal? (-> Any Any Void)]
- [check-exn (-> (-> Any Boolean) (-> Any) Void)])
-
-
-(define-type (Option A) (U (Some A) (None A)))
-(struct (A) None ())
-(struct (A) Some ([value : A]))
-
-(: option-get (All (A) (-> (Option A) A)))
-(define (option-get opt)
-  (match opt
-    [(None) (error "Cannot get on an None option")]
-    [(Some v) v]))
-
-(: option-get-or-else (All (A) (-> (Option A) A A)))
-(define (option-get-or-else opt default)
-  (match opt
-    [(None) default]
-    [(Some v) v]))
+(require "prelude.rkt")
 
 ;; Chapter 5: Strictness and Laziness
-
-;; Infinite computation, useful for testing
-(: DIVERGE (-> Nothing))
-(define (DIVERGE) (DIVERGE))
 
 ;; Reads (Promiseof A)
 (struct (A) Promise ([thunk : (-> A)]))

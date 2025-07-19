@@ -1,8 +1,5 @@
 #lang typed/racket
-(require rackunit)
-(require/typed rackunit
-               [check-equal? (-> Any Any Void)]
-               [check-exn (-> (-> Any Boolean) (-> Any) Void)])
+(require "prelude.rkt")
 
 ;; Chapter 11: Monads
 
@@ -28,13 +25,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Option Monad
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; TODO: extract the common utility data types to their own modules
-
-(define-type (Option A) (U (Some A) (None A)))
-(struct (A) None ())
-(struct (A) Some ([value : A]))
-
 (struct Option/Monad ([unit : (All (A) (-> A (Option A)))]
                       [flatmap : (All (A B) (-> (Option A)
                                                 (-> A (Option B))
@@ -51,7 +41,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; List Monad
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (struct List/Monad ([unit : (All (A) (-> A (Listof A)))]
                     [flatmap : (All (A B) (-> (Listof A)
                                               (-> A (Listof B))
@@ -61,3 +50,4 @@
   (List/Monad
    (λ (a) (list a)) ; unit
    (λ (lst f) (append-map f lst)))) ; flatmap
+

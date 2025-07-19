@@ -1,8 +1,5 @@
 #lang typed/racket
-(require rackunit)
-(require/typed rackunit
-               [check-equal? (-> Any Any Void)]
-               [check-exn (-> (-> Any Boolean) (-> Any) Void)])
+(require "prelude.rkt")
 
 ;; Chapter 10: Monoids
 
@@ -40,10 +37,10 @@
 ;; Ex 10.2 Give the monoid instance for combining Option values
 
 (define monoid/opt : (All (A) (-> (Monoid (Option A))))
-  (λ () ((inst Monoid (Option A)) #f (λ ([a : (Option A)] [b : (Option A)])
-                                       (match a
-                                         [#f b]
-                                         [_ a])))))
+  (λ () ((inst Monoid (Option A)) (None) (λ ([a : (Option A)] [b : (Option A)])
+                                           (match a
+                                             [(None) b]
+                                             [_ a])))))
 
 ;; A function having the same argument and return type is sometimes called an
 ;; *endofunction*
