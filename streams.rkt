@@ -1,5 +1,6 @@
 #lang typed/racket
 (require "prelude.rkt")
+(provide (all-defined-out))
 
 ;; Chapter 5: Strictness and Laziness
 
@@ -224,9 +225,9 @@
               (list 1 2 3 4 5 6 7 8))
 
 (define stream-flatmap :
-  (All (A) (-> (Stream A) (-> A (Stream A)) (Stream A)))
+  (All (A B) (-> (Stream A) (-> A (Stream B)) (Stream B)))
   (λ (stream f)
-    (foldright (λ ([a : A] [b : (Promise (Stream A))]) : (Stream A)
+    (foldright (λ ([a : A] [b : (Promise (Stream B))]) : (Stream B)
                  (stream-concat (f a) (force b)))
                (delay (Sempty))
                stream)))

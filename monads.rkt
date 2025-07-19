@@ -1,5 +1,6 @@
 #lang typed/racket
 (require "prelude.rkt")
+(require "streams.rkt")
 
 ;; Chapter 11: Monads
 
@@ -51,3 +52,15 @@
    (λ (a) (list a)) ; unit
    (λ (lst f) (append-map f lst)))) ; flatmap
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stream Monad
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+(struct Stream/Monad ([unit : (All (A) (-> A (Stream A)))]
+                      [flatmap : (All (A B) (-> (Stream A)
+                                                (-> A (Stream B))
+                                                (Stream B)))]))
+
+(define stream/monad : Stream/Monad
+  (Stream/Monad
+   (λ (a) (list->stream (list a))) ; unit
+   (λ (stream f) (stream-flatmap stream f)))) ; flatmap
