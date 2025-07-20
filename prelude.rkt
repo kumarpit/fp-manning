@@ -1,7 +1,7 @@
 #lang typed/racket
 (require/typed rackunit
- [check-equal? (-> Any Any Void)]
- [check-exn (-> (-> Any Boolean) (-> Any) Void)])
+               [check-equal? (-> Any Any Void)]
+               [check-exn (-> (-> Any Boolean) (-> Any) Void)])
 (provide (all-defined-out))
 (provide check-equal? check-exn)
 
@@ -28,3 +28,9 @@
   (match opt
     [(None) default]
     [(Some v) v]))
+
+(define option/map : (All (A B) (-> (Option A) (-> A B) (Option B)))
+  (λ (opt f)
+    (match opt
+      [(None) (None)]
+      [(Some v) (Some (f v))])))
