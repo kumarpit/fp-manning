@@ -17,8 +17,8 @@
 (struct (A) None ())
 (struct (A) Some ([value : A]))
 
-(: option-get (All (A) (-> (Option A) A)))
-(define (option-get opt)
+(: option/get (All (A) (-> (Option A) A)))
+(define (option/get opt)
   (match opt
     [(None) (error "Cannot get on an None option")]
     [(Some v) v]))

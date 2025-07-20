@@ -168,8 +168,8 @@
     (foldright (λ ([a : A] [_ : (Promise (Option A))]) : (Option A)
                  (Some a)) (delay (None)) stream)))
 
-(check-equal? (option-get (headoption (list->stream (list 1 2 3)))) 1)
-(check-exn exn:fail? (λ () (option-get (headoption (Sempty)))))
+(check-equal? (option/get (headoption (list->stream (list 1 2 3)))) 1)
+(check-exn exn:fail? (λ () (option/get (headoption (Sempty)))))
 
 ;; Ex 5.7 Implement map, filter, append, and flatmap using foldright
 (define stream-map :
