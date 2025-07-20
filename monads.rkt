@@ -84,3 +84,28 @@
   (All (A B) (-> (Listof A) (-> A (Option B)) (Option (Listof B))))
   (λ (lst f)
     (option/sequence (map (λ (a) (f a)) lst))))
+
+
+;; Ex 11.4 Implement replicateM for Monads
+;; NOTE: Again, just going to be implementing these for Option/Monad
+
+(define replicate-m :
+  (All (A) (-> Integer (Option A) (Option (Listof A))))
+  (λ (n opt)
+    (option/sequence (build-list n (λ (_) opt)))))
+
+;; Ex 11.6 Implement the function filterM -- it is like filter except that
+;; insteaf of a function from A => Boolean, we have an A => F[Boolean].
+
+(define option/filter :
+  (All (A) (-> (Listof A) (-> A (Option Boolean)) (Option (Listof A))))
+  (λ (lst f)
+    (foldr (λ ([a : A] [acc : (Option (Listof A))])
+             ((Option/Monad-flatmap option/monad) ; can fail this computation
+              (f a)
+              (λ (bool)
+                (if bool
+                    (option/map acc (λ ([lst : (Listof A)]) (cons a lst)))
+                    acc))))
+           ((Option/Monad-unit option/monad) empty)
+           lst)))

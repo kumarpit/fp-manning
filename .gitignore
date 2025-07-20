@@ -1,2 +1,3 @@
 *.rkt~
 .DS_Store
+compiled/drracket/errortrace
