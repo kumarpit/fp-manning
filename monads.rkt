@@ -173,3 +173,73 @@
     (((inst option/kleisli-compose Any A B)
       (λ (_) opt)
       f) 'ignored)))
+
+;; - The identity laws
+;; Just like monoids had an identity element `zero`, monads have an identity
+;; element for compose -- this is exactly what unit is, i.e.
+;; (compose f unit) == f
+;; (compose unit f) == f
+;;
+;; Stating these laws in terms of flatmap makes them a lot less clearer:
+;; (flatmap x unit) == x
+;; (flatmap (unit y) f) == f(y)
+
+;; Ex 11.10 Prove that these two statements of the identity laws are equivalent
+;; Rewriting the compose version in terms of flatmap, we get:
+;; 1. (compose f unit) == (a => f(a).flatmap(unit))
+;; 2. (compose unit f) == (a => unit(a).flatmap(f))
+;; Rewriting, we get
+;; 1. => (flatmap x unit) = x ; Replace f(a) with x
+;; 2. => (flatmap (unit y) f) = f(y) ; Replace a with y
+
+;; Ex 11.11 Prove that the identity laws hold for a Monad of your choice
+;; Using Option
+;; (1)
+;; In the case that f returns None, 1. is trivially true since None always
+;; compose to Nones
+;; In the case that f return a Some value, it is clear that Some compose with
+;; unit is logically equivalent to just calling f
+;;
+;; (2)
+;; Again, in the case that f returns None, 2 is trivially true
+;; In the case that f returns a Some value, it is easy to see that composition
+;; with unit is equivalent to just calling f
+
+;; Ex 11.12 Implement the `join` combinator
+(define option/join :
+  (All (A) (-> (Option (Option A)) (Option A)))
+  (λ (opt-sqrd)
+    ((inst (Option/Monad-flatmap option/monad) (Option A) A)
+     opt-sqrd
+     identity)))
+
+;; Ex 11.13 Implement either flatmap or compose in terms of join and map
+(define option/monad-flatmap2 :
+  (All (A B) (-> (Option A) (-> A (Option B)) (Option B)))
+  (λ (opt f)
+    (option/join (option/map opt f))))
+
+(define option/klesli-compose2 :
+  (All (A B C) (-> (-> A (Option B)) (-> B (Option C)) (-> A (Option C))))
+  (λ (f g)
+    (λ ([a : A])
+      (option/join (option/map (f a) g)))))
+
+;; Ex 11.14 Restate the monad laws to only mention join, map, and unit
+;; 1. Associative law
+;; Translating the compose based version we get:
+;; (join (map h (join (map g (f a)))))) == 
+;; (join (map (λ (y) (join (map h (g y)))) (f a)))
+;;
+;; This can be simplified by trying to convert the flatmap version instead.
+;; Since the associative law holds for all f and g, we can use the identity
+;; for both to simplify our reasoning. This gives us:
+;; x.flatMap(identity).flatMap(identity) == x.flatMap(a => a.flatMap(identity))
+;;
+;; And since flatmap and identity is a join (and a flatmap itself is a map and a
+;; join), we get our result:
+;; (join (join x)) == (join (map x join))
+;;
+;; 2. Identity law
+;; (join (map x unit)) == x
+;; (join (map (unit y) f)) == (f y)
