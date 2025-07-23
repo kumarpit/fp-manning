@@ -243,3 +243,15 @@
 ;; 2. Identity law
 ;; (join (map x unit)) == x
 ;; (join (map (unit y) f)) == (f y)
+
+;; Just what is a monad???
+;; We can see that a chain of flatMap calls (or an equivalent
+;; for-comprehension) is like an imperative program with statements that assign
+;; to variables, and the monad specifies what happens at statement boundaries.
+;; For example, the Identity monad does nothing but wrap/unwrap the values, the
+;; Option monad provides the ability for a statement to return None and
+;; terminate the program, a list Monad may return multiple values, which causes
+;; statements that follow to possibly run multiple times, etc.
+;; The Moand contract itself doesn't specify any of this "between the lines"
+;; behaviour, just that whatever is happening between the lines satisfies the
+;; laws of associativity and identity.
